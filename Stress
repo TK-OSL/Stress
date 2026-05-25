@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<!--
+===========================================================================
+Project: Interactive Learning - Stress (ความเค้น)
+Description: เว็บแอปพลิเคชันสอนเรื่องความเค้น (Stress) ทางวิศวกรรมวัสดุ
+             - มีเนื้อหาทฤษฎีพื้นฐานพร้อมสูตรการคำนวณ
+             - มีโมเดล 3 มิติแบบ Interactive ที่ใช้ CSS 3D (ไม่ต้องโหลด Library เพิ่ม)
+             - รองรับระบบการหมุนมุมกล้องอิสระทั้งในคอมพิวเตอร์และมือถือ
+             - มีแอนิเมชันแสดงพฤติกรรมของวัสดุและ "เวกเตอร์ของแรง" เลื่อนเข้าหาตามทิศของแรง
+             - มีโจทย์ปัญหา (Editable) ที่ผู้ใช้เปลี่ยนตัวเลขได้และระบบจะอัปเดตเฉลยให้แบบ Real-time
+Author: gemini
+===========================================================================
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Learning: Stress</title>
+    <style>
+        :root {
+            --primary: #1d4ed8;
+            --secondary: #3b82f6;
+            --accent: #f59e0b;
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --surface: #ffffff;
+        }
+        body {
+            font-family: 'Sarabun', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.8;
+            font-size: 18px;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        /* Language Toggle Button Style */
+        .lang-toggle-container {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            display: flex;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 4px;
+            backdrop-filter: blur(4px);
+            z-index: 100;
+        }
+        .lang-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 16px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 6px;
+            color: #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .lang-btn.active {
+            background-color: white;
+            color: var(--primary);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header {
+            background-color: var(--primary);
+            background-image: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            text-align: center;
+            padding: 4rem 1rem 3rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            position: relative;
+        }
+        header h1 {
+            color: white;
+            margin: 0;
+            font-size: 2.5rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        main {
+            max-width: 900px;
+            margin: -2rem auto 2rem;
+            padding: 0 1rem;
+            position: relative;
+            z-index: 10;
+        }
+        section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
+        }
+        h2 {
+            color: var(--primary);
+            font-size: 1.8rem;
+            border-bottom: 3px solid #bfdbfe;
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+        h3 {
+            color: var(--primary);
+            font-size: 1.4rem;
+        }
+        
+        .formula-box {
+            background: #eff6ff;
+            border-left: 6px solid var(--secondary);
+            padding: 2rem;
+            border-radius: 8px;
+            font-size: 1.3rem;
+            text-align: center;
+            margin: 2rem 0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            vertical-align: middle;
+            margin: 0 0.4rem;
+            font-weight: bold;
+        }
+        .fraction .numerator {
+            border-bottom: 2px solid var(--text);
+            padding: 0 0.3rem;
+            line-height: 1.2;
+        }
+        .fraction .denominator {
+            padding: 0 0.3rem;
+            line-height: 1.2;
+        }
+        
+        /* 3D Scene Styles */
+        .scene-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 350px;
+            margin: 1rem auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+            background: radial-gradient(circle, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 12px;
+            border: 2px solid #cbd5e1;
+            touch-action: none;
+        }
+        .scene-container:active {
+            cursor: grabbing;
+        }
+        .drag-hint {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.95rem;
+            color: #64748b;
+            background: rgba(255,255,255,0.8);
+            padding: 4px 12px;
+            border-radius: 20px;
+            pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .scene {
+            width: 150px;
+            height: 150px;
+            perspective: 800px;
+            position: relative;
+        }
+        
+        #rotator {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: translateZ(-75px) rotateX(-20deg) rotateY(-45deg);
+            transition: transform 0.4s ease-out;
+        }
+
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .face {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background: rgba(59, 130, 246, 0.7);
+            border: 2px solid #1d4ed8;
+            box-sizing: border-box;
+            transition: background-color 0.6s, border-color 0.6s;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+        }
+        .front  { transform: rotateY(  0deg) translateZ(75px); }
+        .back   { transform: rotateY(180deg) translateZ(75px); }
+        .right  { transform: rotateY( 90deg) translateZ(75px); }
+        .left   { transform: rotateY(-90deg) translateZ(75px); }
+        .top    { transform: rotateX( 90deg) translateZ(75px); }
+        .bottom { transform: rotateX(-90deg) translateZ(75px); }
+
+        /* True 3D Force Arrows */
+        /* ส่วนของเวกเตอร์แรง (ลูกศร 3 มิติ) */
+        .force-arrow {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0; height: 0;
+            transform-style: preserve-3d;
+            opacity: 0;
+            /* ลบ transition ของ transform ออก เพื่อใช้ @keyframes จัดการการเลื่อนแทน */
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .arrow-shape {
+            position: absolute;
+            transform-style: preserve-3d;
+        }
+        .shaft {
+            position: absolute;
+            width: 6px; height: 40px;
+            background: currentColor;
+            left: -3px; top: -20px;
+        }
+        .head {
+            position: absolute;
+            width: 0; height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-bottom: 22px solid currentColor;
+            left: -12px; top: -42px;
+        }
+
+        /* ==========================================================================
+           Animations สำหรับเวกเตอร์ทิศทางแรง (เคลื่อนที่สไลด์เข้ามาตามทิศของแรง)
+           ========================================================================== */
+        
+        /* Tension (แรงดึง: ลูกศรชี้ออก และเลื่อนจากผิวสัมผัสออกไปด้านนอก) */
+        .arrow-top.tension {
+            animation: slideTensionTop 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            color: #ef4444;
+        }
+        .arrow-bottom.tension {
+            animation: slideTensionBottom 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            color: #ef4444;
+        }
+        @keyframes slideTensionTop {
+            0% { transform: translate3d(0, -75px, 0) scale(0.5); opacity: 0; }
+            100% { transform: translate3d(0, -145px, 0) scale(1); opacity: 1; }
+        }
+        @keyframes slideTensionBottom {
+            0% { transform: translate3d(0, 75px, 0) rotateX(180deg) scale(0.5); opacity: 0; }
+            100% { transform: translate3d(0, 145px, 0) rotateX(180deg) scale(1); opacity: 1; }
+        }
+
+        /* Compression (แรงอัด: ลูกศรชี้เข้า และพุ่งจากด้านนอกเข้าหาผิวสัมผัส) */
+        .arrow-top.compression {
+            animation: slideCompressionTop 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            color: #10b981;
+        }
+        .arrow-bottom.compression {
+            animation: slideCompressionBottom 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            color: #10b981;
+        }
+        @keyframes slideCompressionTop {
+            0% { transform: translate3d(0, -165px, 0) rotateX(180deg) scale(0.5); opacity: 0; }
+            100% { transform: translate3d(0, -95px, 0) rotateX(180deg) scale(1); opacity: 1; }
+        }
+        @keyframes slideCompressionBottom {
+            0% { transform: translate3d(0, 165px, 0) scale(0.5); opacity: 0; }
+            100% { transform: translate3d(0, 95px, 0) scale(1); opacity: 1; }
+        }
+
+        /* Shear (แรงเฉือน: ลูกศรชี้ขนาน และเลื่อนไถลขนานไปกับพื้นผิว) */
+        .arrow-top.shear {
+            animation: slideShearTop 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            color: #f59e0b;
+        }
+        .arrow-bottom.shear {
+            animation: slideShearBottom 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            color: #f59e0b;
+        }
+        @keyframes slideShearTop {
+            0% { transform: translate3d(-40px, -85px, 0) rotateZ(90deg) scale(0.9); opacity: 0; }
+            100% { transform: translate3d(20px, -85px, 0) rotateZ(90deg) scale(0.9); opacity: 1; }
+        }
+        @keyframes slideShearBottom {
+            0% { transform: translate3d(40px, 85px, 0) rotateZ(-90deg) scale(0.9); opacity: 0; }
+            100% { transform: translate3d(-20px, 85px, 0) rotateZ(-90deg) scale(0.9); opacity: 1; }
+        }
+
+        /* View Controls */
+        .view-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .view-label {
+            font-weight: bold;
+            color: #475569;
+            margin-right: 10px;
+        }
+        .view-btn {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--primary);
+            transition: all 0.2s;
+        }
+        .view-btn:hover {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+        }
+
+        /* Action Controls */
+        .controls {
+            text-align: center;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+        }
+        .action-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            flex: 1 1 200px;
+            max-width: 250px;
+        }
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+        .action-btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        /* Exercise Styles */
+        .example-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            padding: 2rem;
+        }
+        .example-title {
+            font-weight: bold;
+            color: var(--primary);
+            font-size: 1.3rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+        .example-title::before {
+            content: '📝';
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+        .problem-text {
+            font-size: 1.15rem;
+            line-height: 2;
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            border-left: 4px solid var(--accent);
+        }
+        .solution {
+            margin-top: 1.5rem;
+        }
+        .solution ol {
+            background: white;
+            padding: 1.5rem 1.5rem 1.5rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .solution li {
+            margin-bottom: 1rem;
+        }
+        
+        .inline-input {
+            width: 140px; /* ปรับขนาดความกว้างให้เหมาะสมกับตัวเลขยาวๆ มากขึ้น */
+            padding: 6px 12px;
+            font-size: 1.1rem;
+            border: 2px dashed var(--secondary);
+            border-radius: 6px;
+            text-align: center;
+            margin: 0 6px;
+            background: #eff6ff;
+            color: var(--primary);
+            font-weight: bold;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .inline-input:focus {
+            background: #fff;
+            border-style: solid;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        .final-answer {
+            background: #dcfce7;
+            color: #166534;
+            padding: 1.2rem;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            text-align: center;
+            border: 1px solid #bbf7d0;
+            margin-top: 1.5rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 3rem 1rem;
+            background: #0f172a;
+            color: #94a3b8;
+            margin-top: 4rem;
+        }
+        .credit {
+            font-size: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .lang-toggle-container {
+                top: 1rem;
+                right: 1rem;
+            }
+            header {
+                padding: 4rem 1rem 2rem;
+            }
+            .fraction {
+                font-size: 1.1rem;
+            }
+            section {
+                padding: 1.5rem;
+            }
+            .scene-container {
+                height: 300px;
+            }
+            .inline-input {
+                width: 100px; /* ลดความกว้างลงเล็กน้อยบนหน้าจอมือถือเพื่อไม่ให้ล้นจอ */
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="lang-toggle-container">
+            <button id="btn-en" class="lang-btn active" onclick="setLanguage('en')">EN</button>
+            <button id="btn-th" class="lang-btn" onclick="setLanguage('th')">TH</button>
+        </div>
+        <h1 id="page-title">Interactive Learning: Stress</h1>
+        <p id="page-subtitle">Learn basic physics and material engineering with 3D visuals.</p>
+    </header>
+
+    <main>
+        <!-- Section 1: Theory -->
+        <section>
+            <h2 id="theory-title">What is Stress?</h2>
+            <p id="theory-desc">When a force is applied to an object, the object tries to resist that deformation. <strong>Stress</strong> is the quantity used to measure the "internal resisting force per unit of cross-sectional area."</p>
+            
+            <div class="formula-box">
+                <span id="formula-title">Formula:</span> 
+                <strong>&sigma; = </strong>
+                <div class="fraction">
+                    <span class="numerator">F</span>
+                    <span class="denominator">A</span>
+                </div>
+                <br><br>
+                <span style="font-size: 1rem; color: #475569;" id="formula-desc">
+                &sigma; (Sigma) = Stress (Unit: Newtons per square meter N/m&sup2; or Pascal Pa)<br>
+                F = Applied External Force (Unit: Newtons N)<br>
+                A = Cross-sectional Area (Unit: Square meters m&sup2;)
+                </span>
+            </div>
+            
+            <h3 id="types-title">Types of Stress</h3>
+            <ul style="list-style-type: square; padding-left: 1.5rem;">
+                <li><strong id="tensile-title" style="color: #ef4444;">Tensile Stress:</strong> Occurs when a pulling force attempts to stretch the object. <u style="text-decoration-color: #ef4444; text-decoration-thickness: 2px;">(Force acts perpendicular to the surface)</u></li>
+                <li style="margin-top: 10px;"><strong id="compressive-title" style="color: #10b981;">Compressive Stress:</strong> Occurs when a pushing force attempts to shorten the object. <u style="text-decoration-color: #10b981; text-decoration-thickness: 2px;">(Force acts perpendicular to the surface)</u></li>
+                <li style="margin-top: 10px;"><strong id="shear-title" style="color: #f59e0b;">Shear Stress:</strong> Occurs when forces act parallel to the cross-sectional area, causing the material to slide against itself. <u style="text-decoration-color: #f59e0b; text-decoration-thickness: 2px;">(Force acts parallel to the surface)</u></li>
+            </ul>
+        </section>
+
+        <!-- Section 2: Interactive 3D Model -->
+        <section>
+            <h2 id="model-title">Interactive 3D Model</h2>
+            <p id="model-desc">Click the buttons below to see how different types of forces and their directions affect the deformation of the material. Pay attention to how the forces are either parallel or perpendicular to the surface.</p>
+            
+            <div class="view-controls">
+                <span class="view-label" id="view-label">Viewpoint:</span>
+                <button class="view-btn" id="btn-iso" onclick="setView(-20, -45)">Isometric</button>
+                <button class="view-btn" id="btn-front" onclick="setView(0, 0)">Front</button>
+                <button class="view-btn" id="btn-top" onclick="setView(-90, 0)">Top</button>
+                <button class="view-btn" id="btn-side" onclick="setView(0, -90)">Side</button>
+            </div>
+
+            <div class="scene-container" id="sceneContainer">
+                <div class="drag-hint" id="drag-hint">👆 Click and drag to rotate</div>
+                <div class="scene">
+                    <div id="rotator">
+                        <!-- 3D Cube -->
+                        <div class="cube" id="materialCube">
+                            <div class="face front"></div>
+                            <div class="face back"></div>
+                            <div class="face right"></div>
+                            <div class="face left"></div>
+                            <div class="face top"></div>
+                            <div class="face bottom"></div>
+                        </div>
+                        
+                        <!-- 3D Force Arrows (Constructed with intersecting planes) -->
+                        <div class="force-arrow arrow-top" id="arrow-top">
+                            <div class="arrow-shape">
+                                <div class="shaft"></div><div class="head"></div>
+                            </div>
+                            <div class="arrow-shape" style="transform: rotateY(90deg)">
+                                <div class="shaft"></div><div class="head"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="force-arrow arrow-bottom" id="arrow-bottom">
+                            <div class="arrow-shape">
+                                <div class="shaft"></div><div class="head"></div>
+                            </div>
+                            <div class="arrow-shape" style="transform: rotateY(90deg)">
+                                <div class="shaft"></div><div class="head"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="action-btn" id="btn-tension" onclick="applyForce('tension')" style="background-color: #ef4444;">Test Tension</button>
+                <button class="action-btn" id="btn-compression" onclick="applyForce('compression')" style="background-color: #10b981;">Test Compression</button>
+                <button class="action-btn" id="btn-shear" onclick="applyForce('shear')" style="background-color: #f59e0b;">Test Shear</button>
+                <button class="action-btn" id="btn-reset" onclick="applyForce('reset')" style="background-color: #64748b;">Reset Shape</button>
+            </div>
+        </section>
+
+        <!-- Section 3: Editable Exercises (Full Layout) -->
+        <section>
+            <h2 id="exercise-title">Stress Calculation Examples (Editable)</h2>
+            <p id="exercise-desc" style="color: #64748b; font-size: 1.05rem; margin-bottom: 2rem;">* You can change the numbers in the dashed boxes below to see how the solution updates automatically.</p>
+            
+            <!-- Example 1 -->
+            <div class="example-card">
+                <div class="example-title" id="ex1-title">Example 1: Finding Tensile Stress</div>
+                <div class="problem-text">
+                    <strong id="ex1-prob-label">Problem:</strong> 
+                    <span id="ex1-prob-1">A steel rod has a cross-sectional area of</span>
+                    <input type="number" class="inline-input" id="ex1-a" value="0.02" step="0.01" oninput="updateExamples()">
+                    <span id="ex1-prob-2">m&sup2; and is pulled with a force of</span>
+                    <input type="number" class="inline-input" id="ex1-f" value="4000" step="500" oninput="updateExamples()">
+                    <span id="ex1-prob-3">N. Find the tensile stress.</span>
+                </div>
+                
+                <div class="solution">
+                    <h3 id="ex1-sol-title" style="margin-top: 0;">Solution:</h3>
+                    <ol id="ex1-steps"></ol>
+                    <div id="ex1-ans" class="final-answer"></div>
+                </div>
+            </div>
+
+            <!-- Example 2 -->
+            <div class="example-card">
+                <div class="example-title" id="ex2-title">Example 2: Finding Compressive Stress of a Column</div>
+                <div class="problem-text">
+                    <strong id="ex2-prob-label">Problem:</strong> 
+                    <span id="ex2-prob-1">A square concrete column has a width of</span>
+                    <input type="number" class="inline-input" id="ex2-w" value="0.5" step="0.1" oninput="updateExamples()">
+                    <span id="ex2-prob-2">meters on each side. It supports a downward compressive force of</span>
+                    <input type="number" class="inline-input" id="ex2-f" value="500000" step="10000" oninput="updateExamples()">
+                    <span id="ex2-prob-3">N. What is the compressive stress?</span>
+                </div>
+                
+                <div class="solution">
+                    <h3 id="ex2-sol-title" style="margin-top: 0;">Solution:</h3>
+                    <ol id="ex2-steps"></ol>
+                    <div id="ex2-ans" class="final-answer"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="credit" id="footer-credit">
+            Credit: OpenSimLab.org | Coded by: gemini
+        </div>
+    </footer>
+
+    <script>
+        // --- Translations ---
+        // ชุดคลังข้อความสำหรับรองรับ 2 ภาษา (English / Thai)
+        const i18n = {
+            'en': {
+                'page-title': 'Interactive Learning: Stress',
+                'page-subtitle': 'Learn basic physics and material engineering with 3D visuals.',
+                'theory-title': 'What is Stress?',
+                'theory-desc': 'When a force is applied to an object, the object tries to resist that deformation. <strong>Stress</strong> is the quantity used to measure the "internal resisting force per unit of cross-sectional area."',
+                'formula-title': 'Formula:',
+                'formula-desc': '&sigma; (Sigma) = Stress (Unit: Newtons per square meter N/m&sup2; or Pascal Pa)<br>F = Applied External Force (Unit: Newtons N)<br>A = Cross-sectional Area (Unit: Square meters m&sup2;)',
+                'types-title': 'Types of Stress',
+                
+                'model-title': 'Interactive 3D Model',
+                'model-desc': 'Click the buttons below to see how different types of forces and their directions affect the deformation of the material. Pay attention to how the forces are either parallel or perpendicular to the surface.',
+                'view-label': 'Viewpoint:',
+                'btn-iso': 'Isometric',
+                'btn-front': 'Front',
+                'btn-top': 'Top',
+                'btn-side': 'Side',
+                'drag-hint': '👆 Click and drag to rotate',
+                'btn-tension': 'Test Tension',
+                'btn-compression': 'Test Compression',
+                'btn-shear': 'Test Shear',
+                'btn-reset': 'Reset Shape',
+                
+                'exercise-title': 'Stress Calculation Examples (Editable)',
+                'exercise-desc': '* You can change the numbers in the dashed boxes below to see how the solution updates automatically.',
+                
+                'ex1-title': 'Example 1: Finding Tensile Stress',
+                'ex1-prob-label': 'Problem:',
+                'ex1-prob-1': 'A steel rod has a cross-sectional area of',
+                'ex1-prob-2': 'm&sup2; and is pulled with a force of',
+                'ex1-prob-3': 'N. Find the tensile stress.',
+                'ex1-sol-title': 'Solution:',
+
+                'ex2-title': 'Example 2: Finding Compressive Stress of a Column',
+                'ex2-prob-label': 'Problem:',
+                'ex2-prob-1': 'A square concrete column has a width of',
+                'ex2-prob-2': 'meters on each side. It supports a downward compressive force of',
+                'ex2-prob-3': 'N. What is the compressive stress?',
+                'ex2-sol-title': 'Solution:',
+                
+                'footer-credit': 'Credit: OpenSimLab.org | Coded by: gemini'
+            },
+            'th': {
+                'page-title': 'Interactive Learning: ความเค้น (Stress)',
+                'page-subtitle': 'เรียนรู้ฟิสิกส์และวิศวกรรมวัสดุเบื้องต้นด้วยภาพ 3 มิติ',
+                'theory-title': 'ความเค้น (Stress) คืออะไร?',
+                'theory-desc': 'เมื่อเราออกแรงกระทำต่อวัตถุ (เช่น ดึง บีบ หรือบิด) วัตถุจะพยายามต่อต้านการเสียรูปนั้น <strong>ความเค้น</strong> คือ ปริมาณที่ใช้วัด "แรงต้านทานภายในเนื้อวัสดุต่อหนึ่งหน่วยพื้นที่หน้าตัด"',
+                'formula-title': 'สูตร:',
+                'formula-desc': '&sigma; (ซิกมา) = ความเค้น (หน่วย: นิวตันต่อตารางเมตร N/m&sup2; หรือ พาสคัล Pa)<br>F = แรงภายนอกที่มากระทำ (หน่วย: นิวตัน N)<br>A = พื้นที่หน้าตัดที่รับแรง (หน่วย: ตารางเมตร m&sup2;)',
+                'types-title': 'ประเภทของความเค้น (Types of Stress)',
+                
+                'model-title': 'โมเดล 3 มิติ (Interactive 3D)',
+                'model-desc': 'ทดลองคลิกปุ่มด้านล่างเพื่อดูว่าชนิดและทิศทางของแรงส่งผลต่อรูปร่างวัสดุอย่างไร สังเกตทิศทางของแรงว่าต้อง <strong>ขนาน</strong> หรือ <strong>ตั้งฉาก</strong> กับผิวสัมผัส',
+                'view-label': 'มุมมอง:',
+                'btn-iso': 'ไอโซเมตริก',
+                'btn-front': 'ด้านหน้า',
+                'btn-top': 'ด้านบน',
+                'btn-side': 'ด้านข้าง',
+                'drag-hint': '👆 คลิกและลากเพื่อหมุนโมเดล',
+                'btn-tension': 'ทดสอบแรงดึง (Tension)',
+                'btn-compression': 'ทดสอบแรงอัด (Compression)',
+                'btn-shear': 'ทดสอบแรงเฉือน (Shear)',
+                'btn-reset': 'คืนสภาพเดิม',
+
+                'exercise-title': 'ตัวอย่างการคำนวณความเค้น (แก้ไขโจทย์ได้)',
+                'exercise-desc': '* คุณสามารถพิมพ์เปลี่ยนตัวเลขในกล่องเส้นประด้านล่าง แล้วดูวิธีทำที่อัปเดตอัตโนมัติได้เลย',
+                
+                'ex1-title': 'ตัวอย่างที่ 1: การหาความเค้นดึง',
+                'ex1-prob-label': 'โจทย์:',
+                'ex1-prob-1': 'แท่งเหล็กมีพื้นที่หน้าตัด',
+                'ex1-prob-2': 'ตารางเมตร ถูกดึงด้วยแรงขนาด',
+                'ex1-prob-3': 'นิวตัน จงหาความเค้นดึงที่เกิดขึ้น',
+                'ex1-sol-title': 'วิธีทำ:',
+
+                'ex2-title': 'ตัวอย่างที่ 2: การหาความเค้นอัดของเสาอาคาร',
+                'ex2-prob-label': 'โจทย์:',
+                'ex2-prob-1': 'เสาคอนกรีตสี่เหลี่ยมจัตุรัสมีความกว้างด้านละ',
+                'ex2-prob-2': 'เมตร รับน้ำหนักกดทับจากโครงสร้างด้านบนเป็นแรง',
+                'ex2-prob-3': 'นิวตัน ความเค้นอัดที่เกิดขึ้นมีค่าเท่าใด?',
+                'ex2-sol-title': 'วิธีทำ:',
+                
+                'footer-credit': 'เครดิต: OpenSimLab.org | ผู้เขียนโค๊ด: gemini'
+            }
+        };
+
+        let currentLang = 'en';
+
+        // ฟังก์ชันสำหรับเปลี่ยนภาษาของหน้าเว็บ
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            // Toggle Buttons (สลับสถานะปุ่มเมนูภาษา)
+            document.getElementById('btn-en').classList.remove('active');
+            document.getElementById('btn-th').classList.remove('active');
+            document.getElementById(`btn-${lang}`).classList.add('active');
+
+            // Static Text
+            const texts = i18n[lang];
+            for (const key in texts) {
+                const element = document.getElementById(key);
+                if (element) element.innerHTML = texts[key];
+            }
+
+            // Complex list items formatting (Preserving structural tags)
+            if (lang === 'en') {
+                document.getElementById('tensile-title').nextSibling.nodeValue = ' Occurs when a pulling force attempts to stretch the object. ';
+                document.getElementById('tensile-title').nextElementSibling.innerHTML = '(Force acts perpendicular to the surface)';
+                
+                document.getElementById('compressive-title').nextSibling.nodeValue = ' Occurs when a pushing force attempts to shorten the object. ';
+                document.getElementById('compressive-title').nextElementSibling.innerHTML = '(Force acts perpendicular to the surface)';
+                
+                document.getElementById('shear-title').nextSibling.nodeValue = ' Occurs when forces act parallel to the cross-sectional area, causing the material to slide against itself. ';
+                document.getElementById('shear-title').nextElementSibling.innerHTML = '(Force acts parallel to the surface)';
+            } else {
+                document.getElementById('tensile-title').nextSibling.nodeValue = ' เกิดขึ้นเมื่อมีแรงดึงพยายามทำให้วัตถุยืดออก ';
+                document.getElementById('tensile-title').nextElementSibling.innerHTML = '(ทิศทางแรงทำมุมตั้งฉากกับผิวสัมผัส)';
+                
+                document.getElementById('compressive-title').nextSibling.nodeValue = ' เกิดขึ้นเมื่อมีแรงกดพยายามทำให้วัตถุหดสั้นลง ';
+                document.getElementById('compressive-title').nextElementSibling.innerHTML = '(ทิศทางแรงทำมุมตั้งฉากกับผิวสัมผัส)';
+                
+                document.getElementById('shear-title').nextSibling.nodeValue = ' เกิดขึ้นเมื่อมีแรงกระทำขนานกับพื้นที่หน้าตัด ทำให้เนื้อวัสดุพยายามเลื่อนไถลออกจากกัน ';
+                document.getElementById('shear-title').nextElementSibling.innerHTML = '(ทิศทางแรงทำมุมขนานกับผิวสัมผัส)';
+            }
+
+            updateExamples();
+        }
+
+        // --- 3D Rotation Logic ---
+        // ระบบควบคุมการหมุนโมเดล 3 มิติ (ใช้ทั้งเมาส์และจอสัมผัส)
+        const rotator = document.getElementById('rotator');
+        const sceneContainer = document.getElementById('sceneContainer');
+        const dragHint = document.getElementById('drag-hint');
+        
+        let rotX = -20;
+        let rotY = -45;
+        let isDragging = false;
+        let startMouseX, startMouseY;
+        let startRotX, startRotY;
+
+        function updateRotation() {
+            rotator.style.transform = `translateZ(-75px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+        }
+
+        function setView(x, y) {
+            rotX = x;
+            rotY = y;
+            rotator.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+            updateRotation();
+        }
+
+        function getEventPos(e) {
+            return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY };
+        }
+
+        function handleDragStart(e) {
+            isDragging = true;
+            const pos = getEventPos(e);
+            startMouseX = pos.x;
+            startMouseY = pos.y;
+            startRotX = rotX;
+            startRotY = rotY;
+            rotator.style.transition = 'none'; // Disable transition for smooth dragging
+            dragHint.style.opacity = '0'; // Hide hint when interacting
+        }
+
+        function handleDragMove(e) {
+            if (!isDragging) return;
+            e.preventDefault(); // Prevent scrolling while rotating
+            const pos = getEventPos(e);
+            const deltaX = pos.x - startMouseX;
+            const deltaY = pos.y - startMouseY;
+            
+            // Adjust sensitivity
+            rotY = startRotY + deltaX * 0.5;
+            rotX = startRotX - deltaY * 0.5; 
+            
+            // Limit X rotation to prevent flipping upside down confusingly if desired
+            if (rotX > 90) rotX = 90;
+            if (rotX < -90) rotX = -90;
+
+            updateRotation();
+        }
+
+        function handleDragEnd() {
+            isDragging = false;
+            rotator.style.transition = 'transform 0.4s ease-out'; // เปิด transition กลับเพื่อให้ปล่อยแล้วค่อยๆ หยุด
+        }
+
+        // Event Listeners สำหรับเมาส์
+        sceneContainer.addEventListener('mousedown', handleDragStart);
+        window.addEventListener('mousemove', handleDragMove);
+        window.addEventListener('mouseup', handleDragEnd);
+
+        // Event Listeners สำหรับจอสัมผัส (มือถือ/แท็บเล็ต)
+        sceneContainer.addEventListener('touchstart', handleDragStart, {passive: false});
+        window.addEventListener('touchmove', handleDragMove, {passive: false});
+        window.addEventListener('touchend', handleDragEnd);
+
+        // --- 3D Animation & Forces Logic ---
+        // ระบบควบคุมแอนิเมชันการเสียรูป (Deformation) และเวกเตอร์แรง (Force Vectors)
+        const cube = document.getElementById('materialCube');
+        const arrowTop = document.getElementById('arrow-top');
+        const arrowBottom = document.getElementById('arrow-bottom');
+
+        function applyForce(type) {
+            // Reset states (เคลียร์สถานะทั้งหมดเพื่อเตรียมเล่นแอนิเมชันใหม่)
+            arrowTop.className = 'force-arrow arrow-top';
+            arrowBottom.className = 'force-arrow arrow-bottom';
+            cube.style.transform = 'scaleY(1) scaleX(1) scaleZ(1) skewX(0deg)';
+            changeColor('rgba(59, 130, 246, 0.7)', '#1d4ed8'); // รีเซ็ตสีกลับเป็นสีน้ำเงิน
+
+            // ใช้ setTimeout เล็กน้อยเพื่อให้คลาสเก่าถูกลบออกสนิท ก่อนใส่คลาสใหม่ (เล่นซ้ำได้)
+            setTimeout(() => {
+                if (type === 'tension') {
+                    // แรงดึง: ยืดตัวตามแกน Y และหดเข้าตามแกน X, Z (คุณสมบัติ Poisson's ratio)
+                    cube.style.transform = 'scaleY(1.5) scaleX(0.85) scaleZ(0.85)';
+                    changeColor('rgba(239, 68, 68, 0.7)', '#b91c1c');
+                    // กระตุ้น Animation ของลูกศร
+                    arrowTop.classList.add('tension');
+                    arrowBottom.classList.add('tension');
+
+                } else if (type === 'compression') {
+                    // แรงอัด: หดตัวตามแกน Y และบวมออกตามแกน X, Z
+                    cube.style.transform = 'scaleY(0.5) scaleX(1.15) scaleZ(1.15)';
+                    changeColor('rgba(16, 185, 129, 0.7)', '#047857');
+                    arrowTop.classList.add('compression');
+                    arrowBottom.classList.add('compression');
+
+                } else if (type === 'shear') {
+                    // แรงเฉือน: บิดเบี้ยว (Skew) ไปตามแรงที่กระทำขนานกับผิวสัมผัส
+                    cube.style.transform = 'skewX(15deg)';
+                    changeColor('rgba(245, 158, 11, 0.7)', '#d97706');
+                    arrowTop.classList.add('shear');
+                    arrowBottom.classList.add('shear');
+                }
+            }, 50);
+        }
+
+        // ฟังก์ชันช่วยเปลี่ยนสีชิ้นส่วนด้านข้างของกล่อง 3 มิติทุกด้าน
+        function changeColor(bgColor, borderColor) {
+            const faces = document.querySelectorAll('.face');
+            faces.forEach(face => {
+                face.style.backgroundColor = bgColor;
+                face.style.borderColor = borderColor;
+            });
+        }
+
+        // --- Editable Examples Logic ---
+        // ระบบจัดการโจทย์ปัญหาที่ผู้ใช้สามารถแก้ไขตัวเลข และระบบเฉลยตามแบบ Real-time
+        
+        // สร้าง HTML รูปแบบเศษส่วน (ตัวเศษส่วนตัวส่วน)
+        function getFractionHTML(num, den) {
+            return `<span class="fraction"><span class="numerator">${num}</span><span class="denominator">${den}</span></span>`;
+        }
+
+        // อ่านค่าจาก Input กล่องไข่ปลา และคำนวณเฉลย
+        function updateExamples() {
+            // Example 1
+            const ex1A = parseFloat(document.getElementById('ex1-a').value) || 0;
+            const ex1F = parseFloat(document.getElementById('ex1-f').value) || 0;
+            const steps1 = document.getElementById('ex1-steps');
+            const ans1 = document.getElementById('ex1-ans');
+
+            if (ex1A <= 0) {
+                ans1.innerHTML = currentLang === 'en' ? "Area must be greater than 0." : "พื้นที่หน้าตัดต้องมากกว่า 0";
+                ans1.style.color = 'red';
+                ans1.style.backgroundColor = '#fee2e2';
+                ans1.style.borderColor = '#fca5a5';
+                steps1.innerHTML = '';
+            } else {
+                const stress1 = ex1F / ex1A;
+                const stress1Formatted = stress1.toLocaleString('en-US', { maximumFractionDigits: 2 });
+                ans1.style.color = '#166534';
+                ans1.style.backgroundColor = '#dcfce7';
+                ans1.style.borderColor = '#bbf7d0';
+
+                if (currentLang === 'en') {
+                    steps1.innerHTML = `
+                        <li><strong>Analyze:</strong> F = ${ex1F.toLocaleString()} N, A = ${ex1A} m&sup2;</li>
+                        <li><strong>Formula:</strong> &sigma; = ${getFractionHTML('F', 'A')}</li>
+                        <li><strong>Substitute:</strong> &sigma; = ${getFractionHTML(ex1F.toLocaleString(), ex1A)}</li>
+                        <li><strong>Calculate:</strong> &sigma; = ${stress1Formatted} N/m&sup2;</li>
+                    `;
+                    ans1.innerHTML = `<strong>Answer:</strong> The tensile stress is <strong>${stress1Formatted} Pascals (Pa)</strong>.`;
+                } else {
+                    steps1.innerHTML = `
+                        <li><strong>วิเคราะห์โจทย์:</strong> ทราบค่า F = ${ex1F.toLocaleString()} N และ A = ${ex1A} m&sup2;</li>
+                        <li><strong>จากสูตร:</strong> &sigma; = ${getFractionHTML('F', 'A')}</li>
+                        <li><strong>แทนค่า:</strong> &sigma; = ${getFractionHTML(ex1F.toLocaleString(), ex1A)}</li>
+                        <li><strong>ผลลัพธ์:</strong> &sigma; = ${stress1Formatted} N/m&sup2;</li>
+                    `;
+                    ans1.innerHTML = `<strong>ตอบ:</strong> ความเค้นดึงมีค่าเท่ากับ <strong>${stress1Formatted} พาสคัล (Pa)</strong>`;
+                }
+            }
+
+            // Example 2
+            const ex2W = parseFloat(document.getElementById('ex2-w').value) || 0;
+            const ex2F = parseFloat(document.getElementById('ex2-f').value) || 0;
+            const steps2 = document.getElementById('ex2-steps');
+            const ans2 = document.getElementById('ex2-ans');
+
+            if (ex2W <= 0) {
+                ans2.innerHTML = currentLang === 'en' ? "Width must be greater than 0." : "ความกว้างต้องมากกว่า 0";
+                ans2.style.color = 'red';
+                ans2.style.backgroundColor = '#fee2e2';
+                ans2.style.borderColor = '#fca5a5';
+                steps2.innerHTML = '';
+            } else {
+                const ex2A = ex2W * ex2W;
+                const stress2 = ex2F / ex2A;
+                const stress2Formatted = stress2.toLocaleString('en-US', { maximumFractionDigits: 2 });
+                ans2.style.color = '#166534';
+                ans2.style.backgroundColor = '#dcfce7';
+                ans2.style.borderColor = '#bbf7d0';
+
+                if (currentLang === 'en') {
+                    steps2.innerHTML = `
+                        <li><strong>Analyze:</strong> F = ${ex2F.toLocaleString()} N. Area (A) is unknown.</li>
+                        <li><strong>Find Area (A) of square:</strong> A = width &times; length = ${ex2W} &times; ${ex2W} = ${ex2A.toFixed(4)} m&sup2;</li>
+                        <li><strong>Formula:</strong> &sigma; = ${getFractionHTML('F', 'A')}</li>
+                        <li><strong>Substitute:</strong> &sigma; = ${getFractionHTML(ex2F.toLocaleString(), ex2A.toFixed(4))}</li>
+                        <li><strong>Calculate:</strong> &sigma; = ${stress2Formatted} N/m&sup2;</li>
+                    `;
+                    ans2.innerHTML = `<strong>Answer:</strong> The compressive stress is <strong>${stress2Formatted} Pascals (Pa)</strong>.`;
+                } else {
+                    steps2.innerHTML = `
+                        <li><strong>วิเคราะห์โจทย์:</strong> ทราบค่า F = ${ex2F.toLocaleString()} N แต่ยังไม่ทราบพื้นที่ A</li>
+                        <li><strong>หาพื้นที่หน้าตัด (A) ของเสาสี่เหลี่ยมจัตุรัส:</strong> A = กว้าง &times; ยาว = ${ex2W} &times; ${ex2W} = ${ex2A.toFixed(4)} m&sup2;</li>
+                        <li><strong>จากสูตร:</strong> &sigma; = ${getFractionHTML('F', 'A')}</li>
+                        <li><strong>แทนค่า:</strong> &sigma; = ${getFractionHTML(ex2F.toLocaleString(), ex2A.toFixed(4))}</li>
+                        <li><strong>ผลลัพธ์:</strong> &sigma; = ${stress2Formatted} N/m&sup2;</li>
+                    `;
+                    ans2.innerHTML = `<strong>ตอบ:</strong> ความเค้นอัดที่เกิดขึ้นมีค่า <strong>${stress2Formatted} พาสคัล (Pa)</strong>`;
+                }
+            }
+        }
+
+        // Init (คำสั่งเริ่มต้นทำงานเมื่อเว็บโหลดเสร็จ)
+        window.onload = () => {
+            setLanguage('en'); // เลือกใช้ภาษาอังกฤษเป็นค่าเริ่มต้น
+            updateExamples();  // สั่งให้คำนวณเฉลยทันทีด้วยค่าตัวเลขตั้งต้น
+        };
+    </script>
+</body>
+</html>
